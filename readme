@@ -1,9 +1,9 @@
-# STM32 MQTT 小车网页控制端 README
+# STM32 MQTT 自主移动机器人网页控制端 README
 
 ## 1. 项目简介
 
-这是一个纯前端的网页控制台，用于通过 MQTT 协议远程控制基于 STM32 + ESP-01M 的 MQTT 小车。  
-网页使用 **HTML + CSS + JavaScript** 编写，依赖 **mqtt.js** 库，通过 **WebSocket** 连接 MQTT Broker，向小车订阅的 Topic 发布 JSON 指令，并实时显示小车上报的编码器状态和通信日志。
+这是一个纯前端的网页控制台，用于通过 MQTT 协议远程控制基于 STM32 + ESP-01M 的 MQTT 自主移动机器人。  
+网页使用 **HTML + CSS + JavaScript** 编写，依赖 **mqtt.js** 库，通过 **WebSocket** 连接 MQTT Broker，向自主移动机器人订阅的 Topic 发布 JSON 指令，并实时显示自主移动机器人上报的编码器状态和通信日志。
 
 无需后端服务器，可本地打开，也可一键发布到 **GitHub Pages**，手机和电脑浏览器均可访问。
 
