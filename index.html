@@ -1,172 +1,537 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MQTT Car</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        
-        .container {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-            padding: 40px;
-            max-width: 600px;
-            width: 100%;
-        }
-        
-        h1 {
-            color: #333;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        
-        .description {
-            color: #666;
-            line-height: 1.6;
-            margin-bottom: 30px;
-            text-align: center;
-        }
-        
-        .controls {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 30px;
-        }
-        
-        button {
-            padding: 12px 20px;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 500;
-        }
-        
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background: #5568d3;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-        
-        .btn-danger {
-            background: #f56565;
-            color: white;
-        }
-        
-        .btn-danger:hover {
-            background: #e53e3e;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(245, 101, 101, 0.4);
-        }
-        
-        .status {
-            background: #f7fafc;
-            padding: 20px;
-            border-radius: 5px;
-            border-left: 4px solid #667eea;
-            margin-top: 20px;
-        }
-        
-        .status-item {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            color: #333;
-        }
-        
-        .status-item:last-child {
-            margin-bottom: 0;
-        }
-        
-        .status-label {
-            font-weight: 500;
-        }
-        
-        .status-value {
-            color: #667eea;
-            font-weight: 600;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<title>STM32 MQTT 小车控制台</title>
+<style>
+:root{
+  --bg:#0d1117; --card:#171d27; --line:#262d3a;
+  --txt:#e6edf3; --dim:#8b98a8;
+  --acc:#3b82f6; --ok:#22c55e; --err:#ef4444; --warn:#f59e0b;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{
+  margin:0; min-height:100vh; padding:16px 12px 40px;
+  background:radial-gradient(1200px 600px at 50% -10%,#1b2740 0%,transparent 60%),var(--bg);
+  color:var(--txt);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:15px; -webkit-font-smoothing:antialiased;
+}
+.app{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px;}
+
+/* ---------- 顶部 ---------- */
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px;}
+header h1{font-size:17px;margin:0;font-weight:600;letter-spacing:.3px;}
+.conn-badge{
+  display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
+  background:var(--card);border:1px solid var(--line);
+  font-size:12.5px;color:var(--dim);white-space:nowrap;
+}
+.dot{width:9px;height:9px;border-radius:50%;background:#6b7280;transition:.3s;}
+.dot.on{background:var(--ok);animation:pulse 1.6s infinite;}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)}70%{box-shadow:0 0 0 8px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+
+/* ---------- 卡片 ---------- */
+.card{
+  background:linear-gradient(180deg,#171d27,#12171f);
+  border:1px solid var(--line); border-radius:16px; padding:14px;
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+}
+.card-title{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:12px;font-weight:700;color:var(--dim);
+  letter-spacing:1px;margin-bottom:12px;
+}
+.card-title .mini{
+  font-size:11px;font-weight:500;letter-spacing:0;
+  background:#0b0f15;border:1px solid var(--line);color:var(--dim);
+  padding:3px 9px;border-radius:8px;cursor:pointer;
+}
+
+/* ---------- 表单 ---------- */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+label.field{display:flex;flex-direction:column;gap:5px;font-size:11.5px;color:var(--dim);}
+label.field input{
+  width:100%;padding:9px 10px;border-radius:10px;
+  background:#0b0f15;border:1px solid var(--line);color:var(--txt);
+  font-size:14px;outline:none;transition:.15s;
+}
+label.field input:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(59,130,246,.15);}
+.hint{font-size:11.5px;color:#6b7a8d;line-height:1.6;margin-top:10px;}
+
+/* ---------- 按钮 ---------- */
+.row{display:flex;gap:10px;margin-top:12px;}
+button{
+  font-family:inherit;font-size:14px;font-weight:600;
+  border-radius:11px;border:1px solid var(--line);
+  background:#1b2230;color:var(--txt);
+  padding:11px 16px;cursor:pointer;transition:.15s;
+  touch-action:manipulation;user-select:none;
+}
+button:hover:not(:disabled){background:#232b3b;}
+button:active:not(:disabled){transform:scale(.97);}
+button:disabled{opacity:.35;cursor:not-allowed;}
+button.primary{background:linear-gradient(180deg,#3b82f6,#2563eb);border-color:#2563eb;flex:1;}
+button.primary:hover:not(:disabled){background:linear-gradient(180deg,#4b8ef7,#2f6fe0);}
+button.ghost{flex:1;}
+button.danger{background:linear-gradient(180deg,#ef4444,#dc2626);border-color:#dc2626;flex:1;}
+button.danger:hover:not(:disabled){background:linear-gradient(180deg,#f45a5a,#e02d2d);}
+
+/* ---------- 参数区 ---------- */
+.param-bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+.param-bar .grow{flex:1;min-width:110px;}
+.presets{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.presets button{
+  padding:5px 12px;font-size:12px;font-weight:500;border-radius:8px;
+  background:#0b0f15;color:var(--dim);
+}
+.presets button:hover{color:var(--txt);border-color:#3a4557;}
+
+.speed-box{display:flex;flex-direction:column;gap:5px;font-size:11.5px;color:var(--dim);min-width:150px;flex:1;}
+.speed-line{display:flex;align-items:center;gap:10px;}
+.speed-line b{color:var(--acc);font-size:16px;min-width:42px;text-align:right;}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;flex:1;height:6px;border-radius:3px;
+  background:linear-gradient(90deg,var(--acc) 0%,var(--acc) 40%,#242c3a 40%);
+  outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:20px;height:20px;border-radius:50%;
+  background:#fff;border:3px solid var(--acc);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.4);
+}
+input[type=range]::-moz-range-thumb{
+  width:16px;height:16px;border-radius:50%;background:#fff;border:3px solid var(--acc);cursor:pointer;
+}
+
+/* ---------- 方向盘 ---------- */
+.dpad{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  grid-template-rows:repeat(3,1fr);
+  gap:10px;
+  max-width:290px;margin:18px auto 4px;
+}
+.dir{
+  aspect-ratio:1;border-radius:50%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  padding:0;border:1px solid #2b3444;
+  background:radial-gradient(circle at 30% 25%,#2a3344,#161c26);
+  color:#9fb0c7;
+  box-shadow:0 4px 12px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+}
+.dir .arrow{font-size:20px;line-height:1;}
+.dir .label{font-size:10.5px;font-weight:600;letter-spacing:.5px;opacity:.8;}
+.dir:hover:not(:disabled){color:#fff;border-color:#3d4a5f;}
+.dir:active:not(:disabled){
+  background:radial-gradient(circle at 30% 25%,#3b82f6,#1d4ed8);
+  color:#fff;transform:scale(.93);
+}
+.dir.stop{
+  border-color:rgba(239,68,68,.55);
+  background:radial-gradient(circle at 30% 25%,#2a2028,#1a1418);
+  color:#f87171;
+}
+.dir.stop:active:not(:disabled){
+  background:radial-gradient(circle at 30% 25%,#ef4444,#b91c1c);color:#fff;
+}
+.grid-1-2{grid-area:1/2/2/3;}
+.grid-2-1{grid-area:2/1/3/2;}
+.grid-2-2{grid-area:2/2/3/3;}
+.grid-2-3{grid-area:2/3/3/4;}
+.grid-3-2{grid-area:3/2/4/3;}
+
+/* ---------- 状态 ---------- */
+.status-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;}
+.status-grid > div{
+  background:#0b0f15;border:1px solid var(--line);border-radius:11px;padding:10px 4px;
+}
+.status-grid .lbl{display:block;font-size:10.5px;color:var(--dim);margin-bottom:5px;}
+.status-grid b{font-size:16px;font-weight:700;color:#7dd3fc;font-variant-numeric:tabular-nums;}
+
+/* ---------- 日志 ---------- */
+#log{
+  margin:0;max-height:200px;overflow:auto;padding:10px;
+  background:#0b0f15;border:1px solid var(--line);border-radius:10px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:11.5px;line-height:1.6;color:#93a3b8;
+  word-break:break-all;
+}
+#log div{white-space:pre-wrap;}
+#log .ok{color:#4ade80;} #log .err{color:#f87171;}
+#log .warn{color:#fbbf24;} #log .pub{color:#60a5fa;}
+#log .recv{color:#c084fc;}
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>🚗 MQTT Car Control</h1>
-        <p class="description">使用 MQTT 协议控制小车的运动和方向</p>
-        
-        <div class="controls">
-            <button class="btn-primary" onclick="sendCommand('forward')">⬆️ 前进</button>
-            <button class="btn-primary" onclick="sendCommand('backward')">⬇️ 后退</button>
-            <button class="btn-primary" onclick="sendCommand('left')">⬅️ 左转</button>
-            <button class="btn-primary" onclick="sendCommand('right')">➡️ 右转</button>
-            <button class="btn-primary" onclick="sendCommand('stop')">⏹️ 停止</button>
-            <button class="btn-danger" onclick="disconnect()">🔌 断开连接</button>
-        </div>
-        
-        <div class="status">
-            <div class="status-item">
-                <span class="status-label">连接状态：</span>
-                <span class="status-value" id="connectionStatus">未连接</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">最后命令：</span>
-                <span class="status-value" id="lastCommand">无</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">命令计数：</span>
-                <span class="status-value" id="commandCount">0</span>
-            </div>
-        </div>
+<div class="app">
+
+  <header>
+    <h1>🚗 STM32 MQTT 小车</h1>
+    <div class="conn-badge"><span class="dot" id="dot"></span><span id="connText">未连接</span></div>
+  </header>
+
+  <!-- ===== ① 连接配置 ===== -->
+  <section class="card">
+    <div class="card-title"><span>① 连接 MQTT Broker</span></div>
+
+    <div class="grid2">
+      <label class="field">Broker 地址 / IP
+        <input id="host" value="192.168.137.138" placeholder="192.168.137.138" inputmode="url">
+      </label>
+      <label class="field">WebSocket 端口
+        <input id="port" value="8083" placeholder="8083" inputmode="numeric">
+      </label>
+      <label class="field">WS 路径
+        <input id="path" value="/mqtt" placeholder="/mqtt">
+      </label>
+      <label class="field">Client ID
+        <input id="clientId" placeholder="自动生成">
+      </label>
+      <label class="field">用户名（可选）
+        <input id="user" placeholder="留空表示无">
+      </label>
+      <label class="field">密码（可选）
+        <input id="pass" type="password" placeholder="留空表示无">
+      </label>
     </div>
-    
-    <script>
-        let commandCount = 0;
-        
-        function sendCommand(command) {
-            console.log('发送命令：' + command);
-            document.getElementById('lastCommand').textContent = command;
-            commandCount++;
-            document.getElementById('commandCount').textContent = commandCount;
-            document.getElementById('connectionStatus').textContent = '已连接';
-            
-            // 这里可以添加实际的 MQTT 发送逻辑
-            // 例如：mqtt.publish('car/command', command);
+
+    <div class="row">
+      <button id="btnConnect" class="primary">连接</button>
+      <button id="btnDisconnect" class="ghost" disabled>断开</button>
+    </div>
+
+    <div class="hint">
+      ⚠️ 浏览器只能通过 <b>WebSocket</b> 连 MQTT，请确认 Broker 已开启 WS 监听：<br>
+      · EMQX：端口 <b>8083</b>，路径 <b>/mqtt</b>（默认）<br>
+      · Mosquitto：需配置 <code>listener 9001</code> + <code>protocol websockets</code>，路径填 <b>/</b><br>
+      · 页面用 https 打开时必须用 wss，用 http / 本地文件打开则用 ws
+    </div>
+  </section>
+
+  <!-- ===== ② 运动控制 ===== -->
+  <section class="card">
+    <div class="card-title"><span>② 运动控制</span><span class="mini" id="topicEcho">/stm32/esp01m/receive</span></div>
+
+    <div class="param-bar">
+      <label class="field grow">距离 (cm) / 角度 (°)
+        <input id="param" type="number" value="30" min="1" max="999" inputmode="numeric">
+      </label>
+      <div class="speed-box">
+        <span>速度</span>
+        <div class="speed-line">
+          <input id="speed" type="range" min="30" max="100" step="5" value="40">
+          <b><span id="speedVal">40</span>%</b>
+        </div>
+      </div>
+    </div>
+    <div class="presets">
+      <button data-param="10">10 cm</button>
+      <button data-param="30">30 cm</button>
+      <button data-param="50">50 cm</button>
+      <button data-param="100">100 cm</button>
+      <button data-param="90">90°</button>
+      <button data-param="180">180°</button>
+    </div>
+
+    <!-- 方向盘 -->
+    <div class="dpad">
+      <button class="dir grid-1-2" data-need-conn id="btnFwd">
+        <span class="arrow">▲</span><span class="label">前进</span>
+      </button>
+
+      <button class="dir grid-2-1" data-need-conn id="btnLeft">
+        <span class="arrow">◀</span><span class="label">左转</span>
+      </button>
+
+      <button class="dir stop grid-2-2" data-need-conn id="btnStop">
+        <span class="arrow">■</span><span class="label">停止</span>
+      </button>
+
+      <button class="dir grid-2-3" data-need-conn id="btnRight">
+        <span class="arrow">▶</span><span class="label">右转</span>
+      </button>
+
+      <button class="dir grid-3-2" data-need-conn id="btnBwd">
+        <span class="arrow">▼</span><span class="label">后退</span>
+      </button>
+    </div>
+
+    <div class="row">
+      <button class="ghost" data-need-conn id="btnRot180" style="flex:1">↻ 原地旋转 180°</button>
+    </div>
+
+    <div class="hint">
+      快捷键：<b>W / ↑</b> 前进 · <b>S / ↓</b> 后退 · <b>A / ←</b> 左转 · <b>D / →</b> 右转 · <b>空格</b> 停止<br>
+      闭环运动执行期间 STM32 会阻塞，指令过快会被自动忽略。
+    </div>
+  </section>
+
+  <!-- ===== ③ 状态 ===== -->
+  <section class="card">
+    <div class="card-title"><span>③ 小车状态</span><span class="mini" id="stTime">--:--:--</span></div>
+    <div class="status-grid">
+      <div><span class="lbl">左编码器</span><b id="stL">--</b></div>
+      <div><span class="lbl">右编码器</span><b id="stR">--</b></div>
+      <div><span class="lbl">忙</span><b id="stBusy">--</b></div>
+      <div><span class="lbl">消息数</span><b id="stCount">0</b></div>
+    </div>
+  </section>
+
+  <!-- ===== ④ 日志 ===== -->
+  <section class="card">
+    <div class="card-title"><span>④ 通信日志</span><span class="mini" id="btnClear">清空</span></div>
+    <div id="log"></div>
+  </section>
+
+</div>
+
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ============ 与 STM32 固件一致的 Topic ============ */
+  var TOPIC_CMD    = '/stm32/esp01m/receive';
+  var TOPIC_STATUS = '/stm32/esp01m/status';
+
+  /* ============ 状态码（与固件 switch 对应） ============ */
+  var CMD = { FWD: 1, BWD: 2, LEFT: 3, RIGHT: 4, ROT180: 5, STOP: 6 };
+
+  var client = null;
+  var isConnected = false;
+  var lastSendTs = 0;
+  var SEND_GAP = 700;      // ms，防止指令发太快（STM32 闭环是阻塞的）
+  var msgCount = 0;
+
+  /* ---------------- 日志 ---------------- */
+  function log(msg, cls) {
+    var box = $('log');
+    var d = document.createElement('div');
+    if (cls) d.className = cls;
+    var t = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    d.textContent = '[' + t + '] ' + msg;
+    box.appendChild(d);
+    box.scrollTop = box.scrollHeight;
+    while (box.childNodes.length > 250) box.removeChild(box.firstChild);
+  }
+
+  /* ---------------- 连接状态切换 ---------------- */
+  function setConnected(on) {
+    isConnected = !!on;
+    $('dot').className = 'dot' + (on ? ' on' : '');
+    $('connText').textContent = on ? '已连接' : '未连接';
+    $('btnConnect').disabled = on;
+    $('btnDisconnect').disabled = !on;
+    document.querySelectorAll('[data-need-conn]').forEach(function (b) {
+      b.disabled = !on;
+    });
+  }
+
+  /* ---------------- 参数读取 ---------------- */
+  function getParam() {
+    var v = parseInt($('param').value, 10);
+    if (!isFinite(v) || v < 1) v = 1;
+    if (v > 999) v = 999;
+    return v;
+  }
+  function getSpeed() {
+    var v = parseInt($('speed').value, 10);
+    if (!isFinite(v)) v = 40;
+    return Math.min(100, Math.max(30, v));   // 固件最低 30%，低于会被强制抬到 30
+  }
+
+  /* ---------------- 发送 MQTT 指令 ---------------- */
+  function sendCmd(status, param, speed) {
+    if (!isConnected || !client) {
+      log('⚠️ 未连接 Broker，无法发送', 'warn');
+      return;
+    }
+    var now = Date.now();
+    if (status !== CMD.STOP && (now - lastSendTs) < SEND_GAP) {
+      log('⏳ 上一条指令还在执行，已忽略本次点击', 'warn');
+      return;
+    }
+    lastSendTs = now;
+
+    param = Math.round(Number(param) || 0);
+    speed = Math.round(Number(speed) || 40);
+
+    /* 严格按固件要求：{"status":N,"pose":[距离/角度, 速度, ...]} */
+    var payload = JSON.stringify({
+      status: status,
+      pose:   [param, speed, 0, 0, 0, 0],
+      force:  [0, 0, 0, 0, 0, 0]
+    });
+
+    client.publish(TOPIC_CMD, payload, { qos: 1, retain: false }, function (err) {
+      if (err) log('❌ 发布失败: ' + err.message, 'err');
+      else     log('→ 发送 ' + payload, 'pub');
+    });
+  }
+
+  /* 快捷封装 */
+  function doMove(status) { sendCmd(status, getParam(), getSpeed()); }
+
+  /* ---------------- 连接 ---------------- */
+  function buildUrl() {
+    var host = $('host').value.trim();
+    var port = $('port').value.trim() || '8083';
+    var path = $('path').value.trim() || '/';
+    if (path.charAt(0) !== '/') path = '/' + path;
+    var proto = (location.protocol === 'https:') ? 'wss' : 'ws';
+    return proto + '://' + host + ':' + port + path;
+  }
+
+  function doConnect() {
+    if (typeof mqtt === 'undefined') {
+      log('❌ mqtt.js 加载失败，请检查网络 / CDN', 'err');
+      return;
+    }
+    if (client) { try { client.end(true); } catch (e) {} client = null; }
+
+    var url = buildUrl();
+    var cid = $('clientId').value.trim() ||
+              ('web_car_' + Math.random().toString(16).slice(2, 10));
+
+    /* 记住填写内容 */
+    try {
+      ['host','port','path','clientId','user'].forEach(function (k) {
+        localStorage.setItem('car_' + k, $(k).value);
+      });
+    } catch (e) {}
+
+    log('正在连接 ' + url + ' ...');
+
+    client = mqtt.connect(url, {
+      clientId: cid,
+      clean: true,
+      connectTimeout: 8000,
+      reconnectPeriod: 3000,
+      keepalive: 30,
+      username: $('user').value.trim() || undefined,
+      password: $('pass').value || undefined
+    });
+
+    client.on('connect', function () {
+      setConnected(true);
+      log('✅ 已连接 Broker', 'ok');
+      client.subscribe(TOPIC_STATUS, { qos: 1 }, function (err) {
+        if (err) log('❌ 订阅失败: ' + err.message, 'err');
+        else     log('✅ 已订阅 ' + TOPIC_STATUS, 'ok');
+      });
+    });
+
+    client.on('reconnect', function () { log('🔄 正在重连...', 'warn'); });
+
+    client.on('close', function () {
+      if (isConnected) log('🔌 连接已断开', 'warn');
+      setConnected(false);
+    });
+
+    client.on('error', function (e) {
+      setConnected(false);
+      log('❌ 连接错误: ' + (e && e.message ? e.message : e), 'err');
+    });
+
+    /* 接收 STM32 上报的状态 */
+    client.on('message', function (topic, payload) {
+      var text = payload.toString();
+      if (topic === TOPIC_STATUS) {
+        log('← 状态 ' + text, 'recv');
+        msgCount++;
+        $('stCount').textContent = msgCount;
+        $('stTime').textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+        try {
+          var o = JSON.parse(text);
+          if (typeof o.l    !== 'undefined') $('stL').textContent    = o.l;
+          if (typeof o.r    !== 'undefined') $('stR').textContent    = o.r;
+          if (typeof o.busy !== 'undefined') $('stBusy').textContent = o.busy ? '是' : '否';
+        } catch (e) {
+          log('状态 JSON 解析失败', 'err');
         }
-        
-        function disconnect() {
-            console.log('断开连接');
-            document.getElementById('connectionStatus').textContent = '未连接';
-            document.getElementById('lastCommand').textContent = '无';
-            document.getElementById('commandCount').textContent = '0';
-            commandCount = 0;
-        }
-        
-        // 页面加载完成后的初始化
-        window.addEventListener('load', function() {
-            console.log('MQTT Car 控制面板已加载');
-        });
-    </script>
+      } else {
+        log('← [' + topic + '] ' + text, 'recv');
+      }
+    });
+  }
+
+  function doDisconnect() {
+    if (client) {
+      try { client.end(true); } catch (e) {}
+      client = null;
+    }
+    setConnected(false);
+    log('已手动断开连接', 'warn');
+  }
+
+  /* ---------------- 事件绑定 ---------------- */
+  $('btnConnect').addEventListener('click', doConnect);
+  $('btnDisconnect').addEventListener('click', doDisconnect);
+
+  $('btnFwd').addEventListener('click',   function () { doMove(CMD.FWD);   });
+  $('btnBwd').addEventListener('click',   function () { doMove(CMD.BWD);   });
+  $('btnLeft').addEventListener('click',  function () { doMove(CMD.LEFT);  });
+  $('btnRight').addEventListener('click', function () { doMove(CMD.RIGHT); });
+  $('btnStop').addEventListener('click',  function () { sendCmd(CMD.STOP, 0, 0); });
+  $('btnRot180').addEventListener('click',function () { sendCmd(CMD.ROT180, 180, getSpeed()); });
+
+  /* 参数预设 */
+  document.querySelectorAll('.presets button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      $('param').value = b.getAttribute('data-param');
+    });
+  });
+
+  /* 速度滑块 */
+  $('speed').addEventListener('input', function () {
+    var v = this.value;
+    $('speedVal').textContent = v;
+    var pct = ((v - 30) / 70) * 100;
+    this.style.background =
+      'linear-gradient(90deg,#3b82f6 0%,#3b82f6 ' + pct + '%,#242c3a ' + pct + '%)';
+  });
+  $('speed').dispatchEvent(new Event('input'));
+
+  /* 清空日志 */
+  $('btnClear').addEventListener('click', function () { $('log').innerHTML = ''; });
+
+  /* 键盘控制 */
+  document.addEventListener('keydown', function (e) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    var k = e.key.toLowerCase();
+    var map = {
+      'w': CMD.FWD,  'arrowup':    CMD.FWD,
+      's': CMD.BWD,  'arrowdown':  CMD.BWD,
+      'a': CMD.LEFT, 'arrowleft':  CMD.LEFT,
+      'd': CMD.RIGHT,'arrowright': CMD.RIGHT
+    };
+    if (map[k] !== undefined) {
+      e.preventDefault();
+      doMove(map[k]);
+    } else if (k === ' ' || k === 'escape') {
+      e.preventDefault();
+      sendCmd(CMD.STOP, 0, 0);
+    }
+  });
+
+  /* ---------------- 恢复上次填写的配置 ---------------- */
+  try {
+    ['host','port','path','clientId','user'].forEach(function (k) {
+      var v = localStorage.getItem('car_' + k);
+      if (v !== null && v !== '') $(k).value = v;
+    });
+  } catch (e) {}
+
+  setConnected(false);
+  log('页面就绪，请点击「连接」连上 Broker', 'ok');
+  log('Topic 下发: ' + TOPIC_CMD);
+  log('Topic 上报: ' + TOPIC_STATUS);
+
+})();
+</script>
 </body>
 </html>
