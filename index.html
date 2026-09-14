@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT Car</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .description {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #e53e3e;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(245, 101, 101, 0.4);
+        }
+        
+        .status {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+            margin-top: 20px;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .status-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .status-label {
+            font-weight: 500;
+        }
+        
+        .status-value {
+            color: #667eea;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚗 MQTT Car Control</h1>
+        <p class="description">使用 MQTT 协议控制小车的运动和方向</p>
+        
+        <div class="controls">
+            <button class="btn-primary" onclick="sendCommand('forward')">⬆️ 前进</button>
+            <button class="btn-primary" onclick="sendCommand('backward')">⬇️ 后退</button>
+            <button class="btn-primary" onclick="sendCommand('left')">⬅️ 左转</button>
+            <button class="btn-primary" onclick="sendCommand('right')">➡️ 右转</button>
+            <button class="btn-primary" onclick="sendCommand('stop')">⏹️ 停止</button>
+            <button class="btn-danger" onclick="disconnect()">🔌 断开连接</button>
+        </div>
+        
+        <div class="status">
+            <div class="status-item">
+                <span class="status-label">连接状态：</span>
+                <span class="status-value" id="connectionStatus">未连接</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">最后命令：</span>
+                <span class="status-value" id="lastCommand">无</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">命令计数：</span>
+                <span class="status-value" id="commandCount">0</span>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let commandCount = 0;
+        
+        function sendCommand(command) {
+            console.log('发送命令：' + command);
+            document.getElementById('lastCommand').textContent = command;
+            commandCount++;
+            document.getElementById('commandCount').textContent = commandCount;
+            document.getElementById('connectionStatus').textContent = '已连接';
+            
+            // 这里可以添加实际的 MQTT 发送逻辑
+            // 例如：mqtt.publish('car/command', command);
+        }
+        
+        function disconnect() {
+            console.log('断开连接');
+            document.getElementById('connectionStatus').textContent = '未连接';
+            document.getElementById('lastCommand').textContent = '无';
+            document.getElementById('commandCount').textContent = '0';
+            commandCount = 0;
+        }
+        
+        // 页面加载完成后的初始化
+        window.addEventListener('load', function() {
+            console.log('MQTT Car 控制面板已加载');
+        });
+    </script>
+</body>
+</html>
