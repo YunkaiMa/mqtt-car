@@ -292,7 +292,7 @@ input[type=range]::-moz-range-thumb{
       <div class="speed-box">
         <span>速度</span>
         <div class="speed-line">
-          <input id="speed" type="range" min="30" max="100" step="5" value="40">
+          <input id="speed" type="range" min="5" max="100" step="5" value="40">
           <b><span id="speedVal">40</span>%</b>
         </div>
       </div>
@@ -533,7 +533,7 @@ input[type=range]::-moz-range-thumb{
   function getSpeed() {
     var v = parseInt($('speed').value, 10);
     if (!isFinite(v)) v = 40;
-    return Math.min(100, Math.max(30, v));
+    return Math.min(100, Math.max(5, v));
   }
   function doMove(status) { sendCmdToSelected(status, getParam(), getSpeed()); }
 
