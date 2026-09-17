@@ -273,14 +273,17 @@ input[type=range]::-moz-range-thumb{
     </div>
     <div class="robot-grid" id="robotGrid"></div>
     <div class="hint">
-      点击编号选择/取消。指令会为每台选中车单独下发一条 MQTT 消息。<br>
+      点击编号选择/取消。<b>每台车一个独立主题</b>：指令只发给选中的车，其他车完全收不到。<br>
       <span style="color:#fbbf24;">●</span> 表示该车最近一次上报状态为「忙」
     </div>
   </section>
 
   <!-- ===== ③ 运动控制 ===== -->
   <section class="card">
-    <div class="card-title"><span>③ 运动控制</span><span class="mini" id="topicEcho">/stm32/esp01m/receive</span></div>
+    <div class="card-title">
+      <span>③ 运动控制</span>
+      <span class="mini" id="topicEcho">/stm32/esp01m/&lt;车号&gt;</span>
+    </div>
 
     <div class="param-bar">
       <label class="field grow">距离 (cm) / 角度 (°)
@@ -375,9 +378,19 @@ input[type=range]::-moz-range-thumb{
 
   var $ = function (id) { return document.getElementById(id); };
 
-  /* ============ Topic ============ */
-  var TOPIC_CMD    = '/stm32/esp01m/receive';
-  var TOPIC_STATUS = '/stm32/esp01m/status';
+  /* ============================================================
+   *  Topic 定义（与 STM32 固件一一对应）
+   * ------------------------------------------------------------
+   *  下发：/stm32/esp01m/<车号>       (每台车独立订阅)
+   *  上报：/stm32/esp01m/status       (所有车共用)
+   * ============================================================ */
+  var TOPIC_CMD_PREFIX = '/stm32/esp01m/';           // 拼上车号 = 该车专属命令主题
+  var TOPIC_STATUS     = '/stm32/esp01m/status';     // 所有车共用状态主题
+
+  /* 根据车号拼命令主题：1 -> "/stm32/esp01m/1" */
+  function topicCmdFor(carId) {
+    return TOPIC_CMD_PREFIX + carId;
+  }
 
   /* ============ 指令枚举（与 STM32 固件 switch 对应） ============ */
   var CMD = { FWD: 1, BWD: 2, LEFT: 3, RIGHT: 4, ROT180: 5, STOP: 6 };
@@ -386,7 +399,7 @@ input[type=range]::-moz-range-thumb{
   var client = null;
   var isConnected = false;
   var lastSendTs = 0;
-  var SEND_GAP = 700;                 // ms
+  var SEND_GAP = 700;                 // ms，非停止指令的最小间隔
   var selectedSet = new Set();        // 已选中的车号
   var statusMap = {};                 // { carId: {l, r, busy, ts} }
   var statusRenderTimer = null;
@@ -456,12 +469,16 @@ input[type=range]::-moz-range-thumb{
   }
 
   function getSelectedRobots() {
-    var arr = Array.from(selectedSet).sort(function (a, b) { return a - b; });
-    return arr;
+    return Array.from(selectedSet).sort(function (a, b) { return a - b; });
   }
 
   /* ============================================================
-   *  ④ 发送指令
+   *  ④ 发送指令（每台车发到自己的专属主题）
+   * ------------------------------------------------------------
+   *  选中 5、17、88 时点击「前进」会发出 3 条消息：
+   *    topic: /stm32/esp01m/5   payload: {"status":1,"pose":[30,40,5,0,0,0]}
+   *    topic: /stm32/esp01m/17  payload: {"status":1,"pose":[30,40,17,0,0,0]}
+   *    topic: /stm32/esp01m/88  payload: {"status":1,"pose":[30,40,88,0,0,0]}
    * ============================================================ */
   function sendCmdToSelected(status, param, speed) {
     var selected = getSelectedRobots();
@@ -484,31 +501,29 @@ input[type=range]::-moz-range-thumb{
     param = Math.round(Number(param) || 0);
     speed = Math.round(Number(speed) || 40);
 
-    /* 为每台选中车单独发一条消息，pose[2] = 目标车号 */
-    var sent = 0;
-    var errCount = 0;
+    var sent = 0, errCount = 0;
     selected.forEach(function (carId) {
+      var topic   = topicCmdFor(carId);   // ★ 关键：按车号拼主题
       var payload = JSON.stringify({
         status: status,
         pose:   [param, speed, carId, 0, 0, 0],
         force:  [0, 0, 0, 0, 0, 0]
       });
-      client.publish(TOPIC_CMD, payload, { qos: 1, retain: false }, function (err) {
+      client.publish(topic, payload, { qos: 1, retain: false }, function (err) {
         if (err) errCount++;
       });
       sent++;
     });
 
-    /* 汇总日志（避免 100 条刷屏） */
     var cmdName = Object.keys(CMD).find(function (k) { return CMD[k] === status; }) || ('#' + status);
     var brief = (selected.length <= 12)
       ? ' [' + selected.join(',') + ']'
       : ' [' + selected.slice(0, 6).join(',') + '...共' + selected.length + '台]';
-    log('→ ' + cmdName + ' param=' + param + ' speed=' + speed + ' → ' + sent + ' 台' + brief, 'pub');
+    log('→ ' + cmdName + ' param=' + param + ' speed=' + speed +
+        ' → ' + sent + ' 台' + brief, 'pub');
     if (errCount > 0) log('❌ 其中 ' + errCount + ' 条发布失败', 'err');
   }
 
-  /* 读参数 */
   function getParam() {
     var v = parseInt($('param').value, 10);
     if (!isFinite(v) || v < 1) v = 1;
@@ -522,21 +537,20 @@ input[type=range]::-moz-range-thumb{
   }
   function doMove(status) { sendCmdToSelected(status, getParam(), getSpeed()); }
 
-  /* 全部急停：无视当前选择，直接向 1-100 全部发停止 */
+  /* 全部急停：无视当前选择，向 1~100 每台车的专属主题都发一遍停止 */
   function stopAllRobots() {
     if (!isConnected || !client) {
       log('⚠️ 未连接 Broker', 'warn');
       return;
     }
     for (var i = 1; i <= 100; i++) {
-      var payload = JSON.stringify({
+      client.publish(topicCmdFor(i), JSON.stringify({
         status: CMD.STOP,
         pose:   [0, 0, i, 0, 0, 0],
         force:  [0, 0, 0, 0, 0, 0]
-      });
-      client.publish(TOPIC_CMD, payload, { qos: 1, retain: false });
+      }), { qos: 1, retain: false });
     }
-    log('🛑 已向全部 100 台车发送停止命令', 'warn');
+    log('🛑 已向全部 100 台车各自的专属主题发送停止命令', 'warn');
   }
 
   /* ============================================================
@@ -583,6 +597,7 @@ input[type=range]::-moz-range-thumb{
     client.on('connect', function () {
       setConnected(true);
       log('✅ 已连接 Broker', 'ok');
+      /* 只订阅共享状态主题即可收到所有车 */
       client.subscribe(TOPIC_STATUS, { qos: 1 }, function (err) {
         if (err) log('❌ 订阅失败: ' + err.message, 'err');
         else     log('✅ 已订阅 ' + TOPIC_STATUS, 'ok');
@@ -674,7 +689,6 @@ input[type=range]::-moz-range-thumb{
    *  ⑦ 事件绑定
    * ============================================================ */
   function bindEvents() {
-    /* 连接 */
     $('btnConnect').addEventListener('click', doConnect);
     $('btnDisconnect').addEventListener('click', doDisconnect);
 
@@ -683,16 +697,12 @@ input[type=range]::-moz-range-thumb{
       var btn = e.target.closest('.robot-btn');
       if (!btn) return;
       var cid = parseInt(btn.dataset.car, 10);
-      if (selectedSet.has(cid)) {
-        selectedSet.delete(cid);
-      } else {
-        selectedSet.add(cid);
-      }
+      if (selectedSet.has(cid)) selectedSet.delete(cid);
+      else                       selectedSet.add(cid);
       refreshRobotBtnState();
       updateControls();
     });
 
-    /* 全选 / 清空 / 反选 */
     $('btnSelectAll').addEventListener('click', function () {
       selectedSet.clear();
       for (var i = 1; i <= 100; i++) selectedSet.add(i);
@@ -715,7 +725,6 @@ input[type=range]::-moz-range-thumb{
       log('已反选，当前 ' + selectedSet.size + ' 台', 'warn');
     });
 
-    /* 运动控制 */
     $('btnFwd').addEventListener('click',   function () { doMove(CMD.FWD);   });
     $('btnBwd').addEventListener('click',   function () { doMove(CMD.BWD);   });
     $('btnLeft').addEventListener('click',  function () { doMove(CMD.LEFT);  });
@@ -724,14 +733,12 @@ input[type=range]::-moz-range-thumb{
     $('btnRot180').addEventListener('click',function () { sendCmdToSelected(CMD.ROT180, 180, getSpeed()); });
     $('btnStopAll').addEventListener('click', stopAllRobots);
 
-    /* 参数预设 */
     document.querySelectorAll('.presets button').forEach(function (b) {
       b.addEventListener('click', function () {
         $('param').value = b.getAttribute('data-param');
       });
     });
 
-    /* 速度滑块 */
     $('speed').addEventListener('input', function () {
       var v = this.value;
       $('speedVal').textContent = v;
@@ -741,7 +748,6 @@ input[type=range]::-moz-range-thumb{
     });
     $('speed').dispatchEvent(new Event('input'));
 
-    /* 清空 */
     $('btnClear').addEventListener('click', function () { $('log').innerHTML = ''; });
     $('stClear').addEventListener('click', function () {
       statusMap = {};
@@ -776,7 +782,6 @@ input[type=range]::-moz-range-thumb{
     buildRobotGrid();
     bindEvents();
 
-    /* 恢复上次填写的连接配置 */
     try {
       ['host','port','path','clientId','user'].forEach(function (k) {
         var v = localStorage.getItem('car_' + k);
@@ -786,9 +791,10 @@ input[type=range]::-moz-range-thumb{
 
     setConnected(false);
     log('页面就绪。① 连接 Broker → ② 选择机器人 → ③ 发送指令', 'ok');
-    log('Topic 下发: ' + TOPIC_CMD);
-    log('Topic 上报: ' + TOPIC_STATUS);
+    log('Topic 下发: ' + TOPIC_CMD_PREFIX + '<车号>   (每台车独立主题)');
+    log('Topic 上报: ' + TOPIC_STATUS + '           (所有车共用)');
     log('协议: pose = [距离/角度, 速度, 机器人编号, 0, 0, 0]');
+    log('示例: 选中 5、17 号点前进 → 发 /stm32/esp01m/5 和 /stm32/esp01m/17 各一条');
   }
 
   init();
